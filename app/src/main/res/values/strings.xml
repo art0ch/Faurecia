@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">Faurecia</string>
+    <string name="PPM_header">PPM calculation</string>
+    <string name="details_table_header">Details Table</string>
+
+    <string name="ppm_column_detail">DETAIL</string>
+    <string name="ppm_column_normal">Normal</string>
+    <string name="ppm_column_defective">Bad</string>
+    <string name="ppm_column_total">Total</string>
+
+    <string name="ppm_front_left">Front left</string>
+    <string name="ppm_front_right">Front right</string>
+    <string name="ppm_back_left">Back left</string>
+    <string name="ppm_back_right">Back right</string>
+
+    <string name="ppm_table_default_field">…</string>
+    <string name="ppm_button_count">COUNT</string>
+
+    <string name="ppm_on_result">Fill the table and push the button to count PPM</string>
+
+
+
+
+
+</resources>
