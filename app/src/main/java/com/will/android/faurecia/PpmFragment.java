@@ -1,6 +1,6 @@
 package com.will.android.faurecia;
 
-import android.annotation.SuppressLint;
+import android.content.Context;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -8,18 +8,30 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.fragment.app.Fragment;;import java.util.HashMap;
-import java.util.Map;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.fragment.app.Fragment;
+
+import java.util.ArrayList;
+import java.util.Objects;
 
 
 public class PpmFragment extends Fragment {
+
+    MainActivity mainActivity;
+
+    public PpmFragment(MainActivity mainActivity) {
+        this.mainActivity = mainActivity;
+    }
+
+    View ppm;
+
     private EditText frontLeftNormal;
     private EditText frontLeftDefect;
     private TextView frontLeftTotal;
@@ -36,331 +48,165 @@ public class PpmFragment extends Fragment {
     private EditText backRightDefect;
     private TextView backRightTotal;
 
-    private TextView onResultPPM;
+    private TextView PPM_number;
+    private TextView dle_PPM_number;
     private Button toCount;
 
-    TablePPM mTablePPM = MainActivity.mForm.getTablePPM();
+    private Fragment dle;
+    private Form form;
+
+    TablePPM tablePPM;
+    TableDLE tableDLE;
+    ArrayList<TablePPM.RowPPM> rows;
+
+    ConstraintLayout constraintLayout;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View ppm = inflater.inflate(R.layout.fragment_ppm, container, false);
+        ppm = inflater.inflate(R.layout.fragment_ppm, container, false);
 
-        onResultPPM = ppm.findViewById(R.id.PPM_result);
+        constraintLayout = ppm.findViewById(R.id.ppm_layout);
+        constraintLayout.setOnFocusChangeListener(onFocusChangeListener);
+
+        form = this.mainActivity.getForm();
+        dle = this.mainActivity.getDleFragment();
+
+        tableDLE = form.getTableDLE();
+        dle_PPM_number = Objects.requireNonNull(dle.getView()).findViewById(R.id.dle_PPM_number);
+
+        tablePPM = form.getTablePPM();
+        rows = tablePPM.getRows();
+        PPM_number = ppm.findViewById(R.id.PPM_number);
         toCount = ppm.findViewById(R.id.PPM_count_button);
-        toCount.setEnabled(false);
 
         toCount.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                mTablePPM.countPPM();
-                String result = "PPM = " + mTablePPM.getPPM();
-                onResultPPM.setText(String.valueOf(result));
+                tablePPM.countPPM();
+                int result = tablePPM.getPPM();
+                PPM_number.setText(String.valueOf(result));
+                dle_PPM_number.setText(String.valueOf(result));
             }
         });
 
-
-        frontLeftNormal = ppm.findViewById(R.id.front_left_normal);
-        frontLeftNormal.addTextChangedListener(mFrontLeftNormal);
-
-        frontLeftDefect = ppm.findViewById(R.id.front_left_defect);
-        frontLeftDefect.addTextChangedListener(mFrontLeftDefect);
-
-        frontLeftTotal = ppm.findViewById(R.id.front_left_total);
-
-
-        frontRightNormal = ppm.findViewById(R.id.front_right_normal);
-        frontRightNormal.addTextChangedListener(mFrontRightNormal);
-
-        frontRightDefect = ppm.findViewById(R.id.front_right_defect);
-        frontRightDefect.addTextChangedListener(mFrontRightDefect);
-
-        frontRightTotal = ppm.findViewById(R.id.front_right_total);
-
-
-        backLeftNormal = ppm.findViewById(R.id.back_left_normal);
-        backLeftNormal.addTextChangedListener(mBackLeftNormal);
-
-        backLeftDefect = ppm.findViewById(R.id.back_left_defect);
-        backLeftDefect.addTextChangedListener(mBackLeftDefect);
-
-        backLeftTotal = ppm.findViewById(R.id.back_left_total);
-
-
-        backRightNormal = ppm.findViewById(R.id.back_right_normal);
-        backRightNormal.addTextChangedListener(mBackRightNormal);
-
-        backRightDefect = ppm.findViewById(R.id.back_right_defect);
-        backRightDefect.addTextChangedListener(mBackRightDefect);
-
-        backRightTotal = ppm.findViewById(R.id.back_right_total);
+        initViews();
+        addListeners();
+        setRowsFields();
 
         return ppm;
     }
 
 
-    TextWatcher mFrontLeftNormal = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
+    private TextWatcher getTextWatcher(final EditText editText) {
+        return new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.frontLeft.setGoodItemsNumber(Integer.parseInt(s.toString()));
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String stringIn = s.toString();
+                if (stringIn.equals("0")) {
+                    editText.removeTextChangedListener(this);
+                    editText.setText("");
+                    editText.addTextChangedListener(this);
+                } else {
+                    try {
+                        int in = Integer.parseInt(s.toString());
+                        checkAndFill(editText, in);
+                    } catch (Exception e) {
+                        checkAndFill(editText, 0);
+                    }
+                }
+            }
 
-                if (frontLeftDefect.length() != 0) {
-                    int total = mTablePPM.frontLeft.getGoodItemsNumber()
-                            + mTablePPM.frontLeft.getDefectiveItemsNumber();
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        };
+    }
 
-                    frontLeftTotal.setText(String.valueOf(total));
-                    mTablePPM.frontLeft.setTotalItemsNumber(total);
-                    checkIfTableIsFilled();
-                    Log.d("total", String.valueOf(total));
+    void checkAndFill(EditText editText, int in) {
+        for (TablePPM.RowPPM row : rows) {
+            if (editText.equals(row.getGoodItemsView()) || editText.equals(row.getDefectiveItemsView())) {
+                if (row.getGoodItemsView().equals(editText)) {
+                    row.setGoodItemsNumber(in);
+                } else {
+                    row.setDefectiveItemsNumber(in);
                 }
 
-            } catch (Exception e) {
-                mTablePPM.frontLeft.setGoodItemsNumber(0);
-                frontLeftTotal.setText("");
-                checkIfTableIsFilled();
+                int res = row.getGoodItemsNumber() + row.getDefectiveItemsNumber();
+                Log.d("int res", String.valueOf(res));
+                row.setTotalItemsNumber(res);
+                if (res == 0) {
+                    row.getTotalView().setText("");
+                } else {
+                    row.getTotalView().setText(String.valueOf(res));
+                }
+
             }
         }
+    }
 
+    View.OnFocusChangeListener onFocusChangeListener = new View.OnFocusChangeListener() {
         @Override
-        public void afterTextChanged(Editable s) {
+        public void onFocusChange(View v, boolean hasFocus) {
+
+            if (hasFocus) {
+                InputMethodManager imm = (InputMethodManager) Objects.requireNonNull(Objects.requireNonNull(getContext()).getSystemService(Context.INPUT_METHOD_SERVICE));
+                imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            }
+
         }
     };
 
-    TextWatcher mFrontLeftDefect = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
+    void initViews() {
+        frontLeftNormal = ppm.findViewById(R.id.front_left_normal);
+        frontLeftDefect = ppm.findViewById(R.id.front_left_defect);
+        frontLeftTotal = ppm.findViewById(R.id.front_left_total);
 
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.frontLeft.setDefectiveItemsNumber(Integer.parseInt(s.toString()));
+        frontRightNormal = ppm.findViewById(R.id.front_right_normal);
+        frontRightDefect = ppm.findViewById(R.id.front_right_defect);
+        frontRightTotal = ppm.findViewById(R.id.front_right_total);
 
-                if (frontLeftNormal.length() != 0) {
-                    int total = mTablePPM.frontLeft.getGoodItemsNumber()
-                            + mTablePPM.frontLeft.getDefectiveItemsNumber();
+        backLeftNormal = ppm.findViewById(R.id.back_left_normal);
+        backLeftDefect = ppm.findViewById(R.id.back_left_defect);
+        backLeftTotal = ppm.findViewById(R.id.back_left_total);
 
-                    frontLeftTotal.setText(String.valueOf(total));
-                    mTablePPM.frontLeft.setTotalItemsNumber(total);
-                    checkIfTableIsFilled();
-                    Log.d("total", String.valueOf(total));
-                }
+        backRightNormal = ppm.findViewById(R.id.back_right_normal);
+        backRightDefect = ppm.findViewById(R.id.back_right_defect);
+        backRightTotal = ppm.findViewById(R.id.back_right_total);
+    }
 
-            } catch (Exception e) {
-                mTablePPM.frontLeft.setDefectiveItemsNumber(0);
-                frontLeftTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
-
-    TextWatcher mFrontRightNormal = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.frontRight.setGoodItemsNumber(Integer.parseInt(s.toString()));
-
-                if (frontRightDefect.length() != 0) {
-                    int total = mTablePPM.frontRight.getGoodItemsNumber()
-                            + mTablePPM.frontRight.getDefectiveItemsNumber();
-
-                    Log.d("front right total", String.valueOf(total));
-                    mTablePPM.frontRight.setTotalItemsNumber(total);
-                    frontRightTotal.setText(String.valueOf(total));
-                    checkIfTableIsFilled();
-                }
-
-            } catch (Exception e) {
-                mTablePPM.frontRight.setGoodItemsNumber(0);
-                frontRightTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
-
-    TextWatcher mFrontRightDefect = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.frontRight.setDefectiveItemsNumber(Integer.parseInt(s.toString()));
-
-                if (frontLeftNormal.length() != 0) {
-                    int total = mTablePPM.frontRight.getGoodItemsNumber()
-                            + mTablePPM.frontRight.getDefectiveItemsNumber();
-
-                    Log.d("front right total 2", String.valueOf(total));
-                    mTablePPM.frontRight.setTotalItemsNumber(total);
-                    frontRightTotal.setText(String.valueOf(total));
-                    checkIfTableIsFilled();
-                }
-
-            } catch (Exception e) {
-                mTablePPM.frontRight.setDefectiveItemsNumber(0);
-                frontRightTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-        
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
-
-    TextWatcher mBackLeftNormal = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.backLeft.setGoodItemsNumber(Integer.parseInt(s.toString()));
-
-                if (backLeftDefect.length() != 0) {
-                    int total = mTablePPM.backLeft.getGoodItemsNumber()
-                            + mTablePPM.backLeft.getDefectiveItemsNumber();
-
-                    mTablePPM.backLeft.setTotalItemsNumber(total);
-                    backLeftTotal.setText(String.valueOf(total));
-                    checkIfTableIsFilled();
-                }
-
-            } catch (Exception e) {
-                mTablePPM.backLeft.setGoodItemsNumber(0);
-                backLeftTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
+    void addListeners() {
+        frontLeftNormal.addTextChangedListener(getTextWatcher(frontLeftNormal));
+        frontLeftDefect.addTextChangedListener(getTextWatcher(frontLeftDefect));
+        frontRightNormal.addTextChangedListener(getTextWatcher(frontRightNormal));
+        frontRightDefect.addTextChangedListener(getTextWatcher(frontRightDefect));
+        backLeftNormal.addTextChangedListener(getTextWatcher(backLeftNormal));
+        backLeftDefect.addTextChangedListener(getTextWatcher(backLeftDefect));
+        backRightNormal.addTextChangedListener(getTextWatcher(backRightNormal));
+        backRightDefect.addTextChangedListener(getTextWatcher(backRightDefect));
+    }
 
 
-    TextWatcher mBackLeftDefect = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
+    void setRowsFields() {
+        tablePPM.getFrontLeft().setGoodItemsView(frontLeftNormal);
+        tablePPM.getFrontLeft().setDefectiveItemsView(frontLeftDefect);
+        tablePPM.getFrontLeft().setTotalView(frontLeftTotal);
 
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.backLeft.setDefectiveItemsNumber(Integer.parseInt(s.toString()));
+        tablePPM.getFrontRight().setGoodItemsView(frontRightNormal);
+        tablePPM.getFrontRight().setDefectiveItemsView(frontRightDefect);
+        tablePPM.getFrontRight().setTotalView(frontRightTotal);
 
-                if (backLeftNormal.length() != 0) {
-                    int total = mTablePPM.backLeft.getGoodItemsNumber()
-                            + mTablePPM.backLeft.getDefectiveItemsNumber();
+        tablePPM.getBackLeft().setGoodItemsView(backLeftNormal);
+        tablePPM.getBackLeft().setDefectiveItemsView(backLeftDefect);
+        tablePPM.getBackLeft().setTotalView(backLeftTotal);
 
-                    mTablePPM.backLeft.setTotalItemsNumber(total);
-                    backLeftTotal.setText(String.valueOf(total));
-                    checkIfTableIsFilled();
-                }
-
-            } catch (Exception e) {
-                mTablePPM.backLeft.setDefectiveItemsNumber(0);
-                backLeftTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
-
-    TextWatcher mBackRightNormal = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.backRight.setGoodItemsNumber(Integer.parseInt(s.toString()));
-
-                if (backRightDefect.length() != 0) {
-                    int total = mTablePPM.backRight.getGoodItemsNumber()
-                            + mTablePPM.backRight.getDefectiveItemsNumber();
-
-                    mTablePPM.backRight.setTotalItemsNumber(total);
-                    backRightTotal.setText(String.valueOf(total));
-                    checkIfTableIsFilled();
-                }
-
-            } catch (Exception e) {
-                mTablePPM.backRight.setGoodItemsNumber(0);
-                backRightTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
-
-    TextWatcher mBackRightDefect = new TextWatcher() {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            try {
-                mTablePPM.backRight.setDefectiveItemsNumber(Integer.parseInt(s.toString()));
-
-                if (backRightNormal.length() != 0) {
-                    int total = mTablePPM.backRight.getGoodItemsNumber()
-                            + mTablePPM.backRight.getDefectiveItemsNumber();
-
-                    mTablePPM.backRight.setTotalItemsNumber(total);
-                    backRightTotal.setText(String.valueOf(total));
-                    checkIfTableIsFilled();
-                }
-
-            } catch (Exception e) {
-                mTablePPM.backRight.setDefectiveItemsNumber(0);
-                backRightTotal.setText("");
-                checkIfTableIsFilled();
-            }
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {
-        }
-    };
-
-    void checkIfTableIsFilled() {
-        toCount.setEnabled(frontLeftNormal.length() != 0
-                && frontRightDefect.length() != 0
-                && frontRightNormal.length() != 0
-                && frontRightDefect.length() != 0
-                && backLeftNormal.length() != 0
-                && backLeftDefect.length() != 0
-                && backRightNormal.length() != 0
-                && backRightDefect.length() != 0);
+        tablePPM.getBackRight().setGoodItemsView(backRightNormal);
+        tablePPM.getBackRight().setDefectiveItemsView(backRightDefect);
+        tablePPM.getBackRight().setTotalView(backRightTotal);
     }
 
 }
